@@ -1,0 +1,1 @@
+Sometimes I want to watch an episode, but I dont want to pick what episode to watch. So I thought that Netflix should had a button that initiate a random episode. Then I decide that I could develop this myself :D
