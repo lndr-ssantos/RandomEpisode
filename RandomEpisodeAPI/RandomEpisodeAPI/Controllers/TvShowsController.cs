@@ -13,14 +13,14 @@ using System.Threading.Tasks;
 
 namespace RandomEpisodeAPI.Controllers
 {
-    [Route("[controller]/api/v1")]
+    [Route("/api/v1")]
     [ApiController]
-    public class RandomEpisodeController : ControllerBase
+    public class TvShowsController : ControllerBase
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IOptions<TmdbApiOptions> _tbmdbApiOptions;
 
-        public RandomEpisodeController(IHttpClientFactory httpClientFactory, IOptions<TmdbApiOptions> tbmdbApiOptions)
+        public TvShowsController(IHttpClientFactory httpClientFactory, IOptions<TmdbApiOptions> tbmdbApiOptions)
         {
             _httpClientFactory = httpClientFactory;
             _tbmdbApiOptions = tbmdbApiOptions;
@@ -66,6 +66,13 @@ namespace RandomEpisodeAPI.Controllers
                     }
                 }
             }
+        }
+
+        [HttpGet("tvshows/{id}/random-episode")]
+        public async Task<IActionResult> GetRandomEpisode(string id)
+        {
+            //TODO Implement
+            return Ok();
         }
     }
 }
