@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RandomEpisodeAPI.Infra;
+using RandomEpisodeAPI.Infra.Gateways;
 using Swashbuckle.AspNetCore.Swagger;
 
 namespace RandomEpisodeAPI
@@ -35,6 +36,7 @@ namespace RandomEpisodeAPI
             });
 
             services.Configure<TmdbApiOptions>(Configuration.GetSection("TMDB_API"));
+            services.AddScoped<ITheMovieDbGateway, TheMovieDbGateway>();
 
             services.AddSingleton(Configuration);
 

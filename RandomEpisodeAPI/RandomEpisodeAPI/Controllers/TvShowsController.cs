@@ -1,14 +1,12 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using RandomEpisodeAPI.Infra;
+using RandomEpisodeAPI.Infra.Gateways;
 using RandomEpisodeAPI.Models;
-using System;
+using RandomEpisodeAPI.Models.TvShows;
 using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
+using System.ComponentModel.DataAnnotations;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace RandomEpisodeAPI.Controllers
@@ -17,62 +15,91 @@ namespace RandomEpisodeAPI.Controllers
     [ApiController]
     public class TvShowsController : ControllerBase
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IOptions<TmdbApiOptions> _tbmdbApiOptions;
+        private readonly ITheMovieDbGateway _theMovieDbGateway;
 
-        public TvShowsController(IHttpClientFactory httpClientFactory, IOptions<TmdbApiOptions> tbmdbApiOptions)
+        public TvShowsController(ITheMovieDbGateway theMovieDbGateway)
         {
-            _httpClientFactory = httpClientFactory;
-            _tbmdbApiOptions = tbmdbApiOptions;
+
+            _theMovieDbGateway = theMovieDbGateway;
         }
 
         [HttpGet("tvshows")]
-        [ProducesResponseType(typeof(List<GetTvShowsResult>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(List<TvShowsResult>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetTvShowsByName([FromQuery] string title)
+        public async Task<IActionResult> GetTvShowsByName([FromQuery][Required] string title)
         {
-            var urlBuilder = new StringBuilder($"{_tbmdbApiOptions.Value.BaseUrl}");
-            urlBuilder.Append($"search/tv?api_key={_tbmdbApiOptions.Value.ApiKey}");
-            urlBuilder.Append($"&query={title}");
+            var titleResult = Title.Create(title);
 
-            var request = new HttpRequestMessage(HttpMethod.Get, urlBuilder.ToString());
-            using (var client = _httpClientFactory.CreateClient())
+            if (titleResult.IsFailure)
             {
-                using (var response = await client.SendAsync(request))
-                 {
-                    if (response.IsSuccessStatusCode)
-                    {
-                        using (var content = response.Content)
-                        {
-                            try
-                            {
-                                var responseJson = await content.ReadAsStringAsync();
-                                var parsedObj = JObject.Parse(responseJson);
-                                var resultsJson = parsedObj["results"].ToString();
-                                var tvShowsResult = JsonConvert.DeserializeObject<List<GetTvShowsResult>>(resultsJson);
-
-                                return Ok(tvShowsResult);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.Message);
-                                return BadRequest();
-                            }
-                        }
-                    }
-                    else
-                    {
-                        return StatusCode((int)response.StatusCode);
-                    }
-                }
+                ModelState.AddModelError(nameof(title), titleResult.Error);
             }
+
+            if (ModelState.IsValid)
+            {
+                var result = await _theMovieDbGateway.SearchTvShowByTitleAsync(titleResult.Value);
+
+                if (result.IsSuccess)
+                {
+                    return Ok(result.Value);
+                }
+
+                //If there are many errors, maybe it's a good idea to create a Map
+                if (result.Error.Value == TheMovieDbApiError.NotFound)
+                {
+                    return NotFound();
+                }
+
+                return StatusCode((int)HttpStatusCode.InternalServerError, new ErrorResult("Erro inesperado"));
+            }
+
+            return BadRequest(ModelState);
         }
 
         [HttpGet("tvshows/{id}/random-episode")]
-        public async Task<IActionResult> GetRandomEpisode(string id)
+        public async Task<IActionResult> GetRandomEpisode([Required]int id)
         {
-            //TODO Implement
-            return Ok();
+            var seasonResult = await _theMovieDbGateway.GetSeasons(id);
+
+            if (seasonResult.IsFailure)
+            {
+                return BadRequest();
+            }
+
+            var (season, episode) = Pick(seasonResult.Value);
+
+            var episodeResult = await _theMovieDbGateway.GetEpisode(id, season, episode);
+
+            if (episodeResult.IsSuccess)
+            {
+                return Ok(episodeResult.Value);
+            }
+
+            //If there are many errors, maybe it's a good idea to create a Map
+            if (episodeResult.Error.Value == TheMovieDbApiError.NotFound)
+            {
+                return NotFound();
+            }
+
+            return StatusCode((int)HttpStatusCode.InternalServerError, new ErrorResult("Erro inesperado"));
+        }
+
+        private (int,int) Pick(List<TvShowsSeasonResult> tvShowsSeasonsResult)
+        {
+            int indexNumber, episodeNumber = 0;
+            bool loop = true;
+            do
+            {
+                var indexPicker = new NumberPicker(tvShowsSeasonsResult.Count);
+                indexNumber = indexPicker.Value - 1; 
+                if (tvShowsSeasonsResult[indexNumber].EpisodeCount > 0)
+                {
+                    var episodePicker = new NumberPicker(tvShowsSeasonsResult[indexNumber].EpisodeCount);
+                    episodeNumber = episodePicker.Value;
+                    loop = false;
+                }
+            } while (loop);
+            return (indexNumber, episodeNumber);
         }
     }
 }

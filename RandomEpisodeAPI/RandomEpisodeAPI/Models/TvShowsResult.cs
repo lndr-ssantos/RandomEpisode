@@ -1,8 +1,8 @@
 ﻿namespace RandomEpisodeAPI.Models
 {
-    public class GetTvShowsResult
+    public class TvShowsResult
     {
         public string Name { get; set; }
-        public string Id { get; set; }
+        public int Id { get; set; }
     }
 }
